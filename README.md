@@ -1,6 +1,7 @@
 # ANN-MINST-Classification
 
 Project Desctiption for CS 4341 Introduction to Artificial Intelligence
+
 Professor: Neil T. Heffernan
 
 ## Project - 2 Artificial Neural Networks
