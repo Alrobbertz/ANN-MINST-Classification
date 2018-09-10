@@ -2,25 +2,31 @@
 # Last Updated: 09/09/2018
 import numpy as np
 import math
+import itertools
+import keras
 import matplotlib.pyplot as plt
 from matplotlib import cm
-import itertools
-
+from scipy import stats
 from sklearn.metrics import confusion_matrix
 from sklearn.model_selection import StratifiedKFold
-
-import keras
 from keras.models import Sequential
-from keras.layers import Dense
+from keras.layers import Dense, Dropout
 from keras import losses
 from keras.optimizers import SGD
 from keras.utils import to_categorical
 
 
 def plot_metrics(con_matrix, classes, hist, title='Confusion Matrix', cmap=plt.cm.Blues):
-    # This function prints and plots the confusion matrix
-    # Normalization can be applied by setting normalize=true
-    plt.subplot(1, 3, 3)
+    plt.subplot(1, 2, 1)
+    plt.plot(hist.history['acc'], label='Training Accuracy')
+    plt.plot(hist.history['val_acc'], label='Validation Accuracy')
+    plt.title('Training and Validation Accuracy Over Epochs')
+    plt.xlabel('Epochs')
+    plt.ylabel('Accuracy')
+    plt.legend()
+    plt.grid()
+
+    plt.subplot(1, 2, 2)
     plt.imshow(con_matrix, interpolation='nearest', cmap=cmap)
     plt.title(title)
     plt.colorbar()
@@ -35,30 +41,17 @@ def plot_metrics(con_matrix, classes, hist, title='Confusion Matrix', cmap=plt.c
     plt.tight_layout()
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
-
-    plt.subplot(1, 3, 1)
-    plt.plot(hist.history['acc'], label='Training Accuracy')
-    plt.title('Training Accuracy Over Epochs')
-    plt.xlabel('Epochs')
-    plt.ylabel('Training Accuracy')
-    plt.grid()
-
-    plt.subplot(1, 3, 2)
-    plt.plot(hist.history['val_acc'], label='Validation Accuracy')
-    plt.title('Validation Accuracy Over Epochs')
-    plt.xlabel('Epochs')
-    plt.ylabel('Validation Accuracy')
-    plt.grid()
     plt.show()
 
 
-def plot_fold_validation(scores):
+def plot_fold_accuracy(scores):
     plt.subplot(1, 3, 1)
     plt.plot(scores[0], label='Training Accuracy')
     plt.plot(scores[1], label='Training Accuracy')
     plt.title('Accuracy Over Fold 1')
     plt.xlabel('Epochs')
     plt.ylabel('Accuracy')
+    plt.legend()
     plt.grid()
 
     plt.subplot(1, 3, 2)
@@ -67,6 +60,7 @@ def plot_fold_validation(scores):
     plt.title('Accuracy Over Fold 2')
     plt.xlabel('Epochs')
     plt.ylabel('Accuracy')
+    plt.legend()
     plt.grid()
 
     plt.subplot(1, 3, 3)
@@ -75,11 +69,12 @@ def plot_fold_validation(scores):
     plt.title('Accuracy Over Fold 3')
     plt.xlabel('Epochs')
     plt.ylabel('Accuracy')
+    plt.legend()
     plt.grid()
     plt.show()
 
 
-def plot_avg_validation(scores):
+def plot_avg_accuracy(scores):
     avg_train_acc = []
     avg_val_acc = []
     for i in range(0, len(scores[0])):
@@ -101,48 +96,43 @@ def plot_avg_validation(scores):
 def k_fold_validation(model, x_data, y_data, k=3, epochs=50, batch_size=32):
     x_data = np.array(x_data)
     y_data = np.array(y_data)
-
     # Save the initial weights
     model.save_weights('weights.h5')
-
+    # Divide the dataset into folds
     kfold = StratifiedKFold(n_splits=k, shuffle=True)
     scores = []
     for index, (train_indicies, val_indicies) in enumerate(kfold.split(x_data, y_data)):
+        print "Validation on Fold ", index
         # Reset the Weights for each fold
         model.load_weights('weights.h5')
-
+        # Load the Correct Training/ Validation Data
         x_train, x_val = x_data[train_indicies], x_data[val_indicies]
         y_train, y_val = to_categorical(y_data[train_indicies], num_classes=10), to_categorical(
             y_data[val_indicies], num_classes=10)
-
+        # Fit data to model with validation data
         hist = model.fit(x=x_train, y=y_train, validation_data=(x_val, y_val), epochs=epochs,
-                         batch_size=batch_size, verbose=1)
+                         batch_size=batch_size, verbose=0)
         scores.append(hist.history['acc'])
+        scores.append(hist.history['loss'])
         scores.append(hist.history['val_acc'])
-    # plot_fold_validation(scores=scores)
-    plot_avg_validation(scores=scores)
+        scores.append(hist.history['val_loss'])
+        print "Training Accuracy: ", hist.history['acc'][len(
+            hist.history['acc']) - 1]
+        print "Validation Accuracy: ", hist.history['val_acc'][len(
+            hist.history['val_acc']) - 1]
+
     return scores
 
 
-def test_set__with_validation(x_data, y_data, epochs=50, batch_size=32):
+def single_fold_validation(model, x_data, y_data, epochs=50, batch_size=32):
     dataset_size = len(x_data)
     training_size = int((0.8) * dataset_size)
-    training_images = []
-    training_labels = []
-    test_images = []
-    test_labels = []
-    # Divide the dataset into ttaining and test sets
-    for i in range(0, training_size):
-        training_images.append(x_data[i])
-        training_labels.append(y_data[i])
-    for i in range(training_size, dataset_size):
-        test_images.append(x_data[i])
-        test_labels.append(y_data[i])
-    # Turn everything into np.array
-    training_images = np.array(training_images)
-    training_labels = to_categorical(np.array(training_labels), num_classes=10)
-    test_images = np.array(test_images)
-    test_labels = to_categorical(np.array(test_labels), num_classes=10)
+    training_images = np.array(x_data[:training_size])
+    training_labels = to_categorical(
+        np.array(y_data[:training_size]), num_classes=10)
+    test_images = np.array(x_data[training_size:])
+    test_labels = to_categorical(
+        np.array(y_data[training_size:]), num_classes=10)
 
     # Fit data to the model
     hist = model.fit(x=training_images, y=training_labels, epochs=epochs,
@@ -150,20 +140,17 @@ def test_set__with_validation(x_data, y_data, epochs=50, batch_size=32):
     # Make Prediction for Confusion Matrix
     predictions = model.predict(
         x=test_images, batch_size=batch_size, verbose=0)
-    # Evaluate your performance in one line:
-    loss_and_metrics = model.evaluate(
+    # Evaluate Test Performance:
+    test_metrics = model.evaluate(
         x=test_images, y=test_labels, batch_size=batch_size, verbose=2)
-
-    print loss_and_metrics
-    y_pred = (predictions > 0.5)
+    # Generate Confusion Matrix
     cm = confusion_matrix(test_labels.argmax(axis=1),
                           predictions.argmax(axis=1))
-    cm_plot_labels = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
-    plot_metrics(con_matrix=cm, classes=cm_plot_labels,
-                 title="Confusion Matrix on Test Set", hist=hist)
+    return hist, cm, test_metrics
 
 
 # ======= LOADING AND LINEARLIZING IMAGES =========
+
 images = np.load('images.npy')
 labels = np.load('labels.npy')
 
@@ -175,16 +162,17 @@ for i in range(0, 6500):
             linear_image.append(images[i][j][k])
     linear_images.append(linear_image)
 
-# ======= GENERATING MODEL  =========
+
+# ======= RUNNING TEST 1  =========
 
 model = Sequential()
+# Using 20% Dropout
+#model.add(Dropout(rate=0.2, input_shape=(784, )))
 model.add(Dense(units=784, activation='relu', input_shape=(784, )))
-for i in range(0, 10):
+for i in range(10):
     model.add(Dense(units=50, activation='relu'))
 model.add(Dense(units=10, activation='softmax'))
-
-# Using 20% Dropout
-# keras.layers.Dropout(rate=0.2)
+print model.summary()
 
 # Compie the model using the following metrics
 sgd = SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True)
@@ -192,10 +180,67 @@ model.compile(loss='categorical_crossentropy',
               optimizer=sgd,
               metrics=['accuracy'])
 
-# test_set__with_validation(model=model, linear_images, labels, epochs = 20, batch_size = 512)
+# For Single-Fold Validation with Test Metrics and Confusion Matrix
+hist1, cm1, test_metrics1 = single_fold_validation(
+    model=model, x_data=linear_images, y_data=labels, epochs=500, batch_size=512)
 
-k_fold_validation(model=model, x_data=linear_images,
-                  y_data=labels, k=3, epochs=500, batch_size=512)
+# For K-Fold Validation with Metrics for each Fold
+# scores1 = k_fold_validation(model=model, x_data=linear_images,
+#                             y_data=labels, k=3, epochs=50, batch_size=512)
 
+# ======= RUNNING TEST 2  =========
+
+model = Sequential()
+# Using 20% Dropout
+model.add(Dropout(rate=0.2, input_shape=(784, )))
+model.add(Dense(units=784, activation='relu'))
+for i in range(10):
+    model.add(Dense(units=50, activation='relu'))
+model.add(Dense(units=10, activation='softmax'))
+print model.summary()
+
+# Compie the model using the following metrics
+sgd = SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True)
+model.compile(loss='categorical_crossentropy',
+              optimizer=sgd,
+              metrics=['accuracy'])
+
+# For Single-Fold Validation with Test Metrics and Confusion Matrix
+hist2, cm2, test_metrics2 = single_fold_validation(
+    model=model, x_data=linear_images, y_data=labels, epochs=500, batch_size=512)
+
+# For K-Fold Validation with Metrics for each Fold
+# scores2 = k_fold_validation(model=model, x_data=linear_images, y_data=labels, k=3, epochs=50, batch_size=512)
+
+# ======= PRINT METRICS =========
+
+# Loss and Accuracy from Evaluating Test Set
+print "Test 1 Loss and Accuracy", test_metrics1
+print "Test 2 Loss and Accuracy", test_metrics2
+
+# Comparing Validation Accuracy Across Tests
+statistic, pvalue = stats.ttest_ind(
+    hist1.history['val_acc'], hist2.history['val_acc'])
+print "T-Statistic and P-Value:", statistic, pvalue
+
+# ======= PLOT METRICS FOR TEST 1 =========
+cm_plot_labels = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+
+# For Single-Fold Validation with Test Metrics and Confusion Matrix
+plot_metrics(con_matrix=cm1, classes=cm_plot_labels,
+             title="Confusion Matrix on Test Set", hist=hist1)
+
+# For K-Fold Validation with Metrics for each Fold
+# plot_fold_accuracy(scores=scores1)
+# plot_avg_validation(scores=scores1)
+
+# ======= PLOT METRICS FOR TEST 1 =========
+# For Single-Fold Validation with Test Metrics and Confusion Matrix
+plot_metrics(con_matrix=cm2, classes=cm_plot_labels,
+             title="Confusion Matrix on Test Set", hist=hist2)
+
+# For K-Fold Validation with Metrics for each Fold
+# plot_fold_accuracy(scores=scores2)
+# plot_avg_validation(scores=scores2)
 
 print("SUCCESS!!")
