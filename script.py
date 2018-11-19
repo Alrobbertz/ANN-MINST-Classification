@@ -16,6 +16,11 @@ from keras.optimizers import SGD
 from keras.utils import to_categorical
 
 
+'''
+** Plots the confusion matrix for a given set of predictions mafde evaluating an  ANN model.
+
+
+'''
 def plot_metrics(con_matrix, classes, hist, title='Confusion Matrix', cmap=plt.cm.Blues):
     plt.subplot(1, 2, 1)
     plt.plot(hist.history['acc'], label='Training Accuracy')
@@ -116,12 +121,12 @@ def k_fold_validation(model, x_data, y_data, k=3, epochs=50, batch_size=32):
     kfold = StratifiedKFold(n_splits=k, shuffle=True)
     scores = []
     for index, (train_indicies, val_indicies) in enumerate(kfold.split(x_data, y_data)):
-        print "Validation on Fold ", index
+        print("Validation on Fold ", index)
         # Reset the Weights for each fold
         try:
             model.load_weights('weights.h5')
         except ValueError:
-            print "No Weights to Load"
+            print("No Weights to Load")
         # Load the Correct Training/ Validation Data
         x_train, x_val = x_data[train_indicies], x_data[val_indicies]
         y_train, y_val = to_categorical(y_data[train_indicies], num_classes=10), to_categorical(
@@ -133,10 +138,8 @@ def k_fold_validation(model, x_data, y_data, k=3, epochs=50, batch_size=32):
         scores.append(hist.history['loss'])
         scores.append(hist.history['val_acc'])
         scores.append(hist.history['val_loss'])
-        print "Training Accuracy: ", hist.history['acc'][len(
-            hist.history['acc']) - 1]
-        print "Validation Accuracy: ", hist.history['val_acc'][len(
-            hist.history['val_acc']) - 1]
+        print("Training Accuracy: ", hist.history['acc'][len( hist.history['acc']) - 1])
+        print("Validation Accuracy: ", hist.history['val_acc'][len(hist.history['val_acc']) - 1])
 
     return scores
 
@@ -233,13 +236,13 @@ hist2, cm2, test_metrics2 = single_fold_validation(
 # ======= PRINT METRICS =========
 
 # Loss and Accuracy from Evaluating Test Set
-print "Test 1 Loss and Accuracy", test_metrics1
-print "Test 2 Loss and Accuracy", test_metrics2
+print("Test 1 Loss and Accuracy", test_metrics1)
+print("Test 2 Loss and Accuracy", test_metrics2)
 
 # For Single-Fold Validation with Test Metrics and Confusion Matrix
 statistic, pvalue = stats.ttest_ind(
     hist1.history['val_acc'], hist2.history['val_acc'])
-print "T-Statistic and P-Value:", statistic, pvalue
+print("T-Statistic and P-Value:", statistic, pvalue)
 
 # For K-Fold Validation with Metrics for each Fold
 # statistic, pvalue = test_scores(scores1=scores1, scores2=scores2)
