@@ -18,7 +18,10 @@ def preprocessig():
     x_train = [[pixel_val for row in image for pixel_val in row] for image in x_train]
     x_test = [[pixel_val for row in image for pixel_val in row] for image in x_test]
 
-    return x_train, y_train, y_train, y_test
+    x_train = np.array(x_train)
+    x_test = np.array(x_test)
+
+    return x_train, x_test, y_train, y_test
 
 
 def create_model(hidden_layers=10, activation_function="relu", dropout_rate=0.0):
